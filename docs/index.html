@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Onboarding operator</title>
+<meta name="description" content="An AI agent runs new-teammate onboarding through an MCP server. Watch it clear its own tasks and hand the rest to a person with the message already written.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=Young+Serif&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f2f4f0;
+    --panel: #fbfcfa;
+    --ink: #11231c;
+    --muted: #4f6158;
+    --line: #cdd5cf;
+    --go: #1f6f5c;
+    --go-soft: #d5e7e0;
+    --mark: #f5d547;
+    --alert: #c33a21;
+    --alert-soft: #f6dcd5;
+    --serif: "Young Serif", Georgia, "Times New Roman", serif;
+    --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 16px/1.55 var(--sans);
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+  a { color: var(--go); text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+  header.top { padding: 28px 0 0; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  header.top .name { font: 600 15px/1.2 var(--sans); }
+  header.top .stamp { color: var(--muted); font-size: 14px; }
+
+  .lede { padding: 56px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; }
+  .lede h1 { font: 400 clamp(30px, 4.6vw, 54px)/1.12 var(--serif); letter-spacing: -0.01em; margin: 0; max-width: 20em; font-variant-numeric: lining-nums tabular-nums; }
+  .lede p.sub { margin: 18px 0 0; max-width: 40em; color: var(--muted); font-size: 17px; }
+  .actions { display: flex; gap: 12px; align-items: center; }
+  button { font: inherit; cursor: pointer; }
+  .btn { border: 2px solid var(--ink); background: var(--ink); color: var(--paper); padding: 12px 22px; border-radius: 999px; font-weight: 600; font-size: 16px; min-height: 48px; }
+  .btn:hover:not(:disabled) { background: var(--go); border-color: var(--go); }
+  .btn:disabled { opacity: .55; cursor: progress; }
+  .btn.ghost { background: transparent; color: var(--ink); }
+  .btn.ghost:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+  h2 { font: 400 24px/1.2 var(--serif); margin: 0 0 6px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+
+  /* roster */
+  .roster { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .person { border-bottom: 1px solid var(--line); }
+  .row { width: 100%; text-align: left; background: none; border: 0; padding: 18px 4px; display: grid; grid-template-columns: 128px minmax(0, 1fr) 44px; gap: 14px; align-items: center; color: inherit; }
+  .row:hover { background: rgba(31, 111, 92, .06); }
+  .who b { display: block; font: 400 19px/1.2 var(--serif); }
+  .who span { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+  .pct { text-align: right; font: 400 20px/1 var(--serif); font-variant-numeric: tabular-nums; }
+  .cell { width: 21px; height: 21px; border-radius: 5px; display: inline-grid; place-items: center; font: 600 12px/1 var(--sans); border: 2px solid var(--line); color: var(--ink); background: transparent; }
+  .cell.done { background: var(--go); border-color: var(--go); color: #fff; }
+  .cell.due { border-color: var(--go); color: var(--go); background: var(--go-soft); }
+  .cell.upcoming { border-style: dashed; }
+  .cell.overdue { background: var(--alert); border-color: var(--alert); color: #fff; }
+  .cell.blocked { border-color: var(--alert); color: var(--alert); background: repeating-linear-gradient(135deg, var(--alert-soft) 0 4px, #fff 4px 8px); }
+  .cell.fresh { animation: marker 1.6s ease-out; }
+  @keyframes marker { 0% { background: var(--mark); border-color: var(--ink); color: var(--ink); transform: scale(1.18); } 60% { background: var(--mark); border-color: var(--ink); color: var(--ink); } 100% { transform: scale(1); } }
+  .today-mark { width: 2px; height: 28px; background: var(--ink); margin: 0 2px; border-radius: 1px; }
+  .detail { padding: 0 4px 20px 146px; }
+  .detail ol { margin: 0; padding: 0; list-style: none; font-size: 14px; }
+  .detail li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); }
+  .detail li:first-child { border-top: 0; }
+  .detail .g { font-weight: 600; text-align: center; }
+  .detail .st-done .g { color: var(--go); } .detail .st-overdue .g, .detail .st-blocked .g { color: var(--alert); }
+  .detail small { display: block; color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 18px 0 0; font-size: 13px; color: var(--muted); align-items: center; }
+  .legend span { display: inline-flex; gap: 8px; align-items: center; }
+  .legend .cell { width: 18px; height: 18px; font-size: 11px; border-radius: 4px; }
+
+  /* run panel */
+  .run { background: var(--panel); border: 2px solid var(--ink); border-radius: 14px; padding: 22px; position: sticky; top: 16px; }
+  .queue { list-style: none; margin: 0; padding: 0; }
+  .queue li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; }
+  .queue li:first-child { border-top: 0; }
+  .queue small { display: block; color: var(--muted); }
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .log li:first-child { border-top: 0; }
+  .log code { font: 500 13px/1.4 var(--mono); background: var(--mark); padding: 1px 6px; border-radius: 4px; word-break: break-word; }
+  .log .res { display: block; margin-top: 4px; color: var(--muted); }
+  .log blockquote { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--go); background: var(--go-soft); font-size: 13px; white-space: pre-wrap; }
+  .log li.enter { animation: in .35s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* follow-ups */
+  section.people { margin: 72px 0 0; }
+  .follow { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .follow li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: 24px; padding: 20px 4px; border-bottom: 1px solid var(--line); align-items: start; }
+  .follow b { font: 400 18px/1.25 var(--serif); display: block; }
+  .follow .why { color: var(--muted); font-size: 14px; margin-top: 4px; display: block; }
+  .follow .why.bad { color: var(--alert); font-weight: 500; }
+  .follow blockquote { margin: 0; font-size: 15px; padding-left: 14px; border-left: 3px solid var(--line); }
+  .copy { border: 2px solid var(--ink); background: transparent; border-radius: 999px; padding: 8px 16px; font-weight: 600; font-size: 14px; min-height: 40px; }
+  .copy:hover { background: var(--ink); color: var(--paper); }
+  .empty { padding: 28px 4px; color: var(--muted); border-bottom: 1px solid var(--line); }
+
+  footer { margin: 80px 0 48px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; display: grid; gap: 10px; max-width: 46em; }
+  footer code { font: 500 13px/1.4 var(--mono); background: #e5eae6; padding: 1px 6px; border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+    .run { position: static; }
+    .lede { grid-template-columns: minmax(0, 1fr); align-items: start; }
+    .row { grid-template-columns: minmax(0, 1fr) 48px; }
+    .row .strip { grid-column: 1 / -1; grid-row: 2; }
+    .detail { padding-left: 4px; }
+    .follow li { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .cell.fresh, .log li.enter { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="name">onboard-ops-mcp</span>
+    <span class="stamp" id="stamp"></span>
+  </header>
+
+  <div class="lede">
+    <div>
+      <h1 id="headline" aria-live="polite">Loading the demo roster.</h1>
+      <p class="sub">An agent runs new-teammate onboarding through an MCP server. It does the tasks it can, and hands you the rest with the follow-up message already written.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="run" type="button">Run the agent</button>
+      <button class="btn ghost" id="reset" type="button" hidden>Reset demo</button>
+    </div>
+  </div>
+
+  <main>
+    <section aria-labelledby="roster-h">
+      <h2 id="roster-h">Roster</h2>
+      <p class="hint">One square per onboarding task, in due-date order. Select a person to read their checklist.</p>
+      <ul class="roster" id="roster"></ul>
+      <div class="legend" aria-label="Legend">
+        <span><i class="cell done">✓</i> Done</span>
+        <span><i class="cell due">•</i> Due today</span>
+        <span><i class="cell upcoming"></i> Coming up</span>
+        <span><i class="cell overdue">!</i> Overdue</span>
+        <span><i class="cell blocked">×</i> Blocked</span>
+        <span><i class="today-mark" style="height:18px"></i> Today</span>
+      </div>
+    </section>
+
+    <aside class="run" aria-labelledby="run-h">
+      <h2 id="run-h">Agent run</h2>
+      <p class="hint" id="run-hint"></p>
+      <ul class="queue" id="queue"></ul>
+      <ul class="log" id="log" role="log" aria-live="polite" hidden></ul>
+    </aside>
+  </main>
+
+  <section class="people" aria-labelledby="follow-h">
+    <h2 id="follow-h">Needs a person</h2>
+    <p class="hint">Tasks the agent cannot or should not do. Each one has a message ready to send.</p>
+    <ul class="follow" id="follow"></ul>
+  </section>
+
+  <footer>
+    <p>This page is a demo with sample people. It replays the agent in your browser using the same checklist rules as the Python server in the repository, so nothing here is sent anywhere.</p>
+    <p>To run the real server: <code>pip install -e .</code> then <code>onboard-ops serve</code>. To see the same run in a terminal: <code>onboard-ops demo</code>.</p>
+    <p><a id="repo" href="https://github.com/junaidmemon1/onboard-ops-mcp">Source on GitHub</a></p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Same template and rules as src/onboard_ops/core.py ----
+  const TEMPLATE = [
+    ["work_email", "Create work email and password-manager account", "agent", -3, true],
+    ["tool_access", "Invite to tracker, docs and shared drive", "agent", -2, true],
+    ["discord_invite", "Send Discord invite and assign starting role", "agent", -1, true],
+    ["setup_check", "Confirm laptop, internet and working hours", "teammate", -1, false],
+    ["welcome_post", "Post welcome message in #introductions", "agent", 0, true],
+    ["buddy_intro", "Introduce onboarding buddy", "operator", 0, false],
+    ["day_one_plan", "Send day-one checklist and who-to-ask list", "agent", 0, true],
+    ["handbook", "Read the handbook and confirm", "teammate", 1, false],
+    ["first_task", "Assign a small first task", "manager", 2, false],
+    ["day3_checkin", "Day-3 check-in: any blockers?", "operator", 3, false],
+    ["week1_feedback", "Collect week-one feedback", "agent", 7, true],
+    ["records_check", "Verify onboarding records are complete", "operator", 7, false],
+  ];
+  const EXTRAS = {
+    engineer: ["repo_access", "Grant repository access and dev environment", "agent", -1, true],
+    developer: ["repo_access", "Grant repository access and dev environment", "agent", -1, true],
+    design: ["design_access", "Grant design tool and brand asset access", "agent", -1, true],
+    support: ["helpdesk_access", "Grant helpdesk access and macros library", "agent", -1, true],
+  };
+  const PEOPLE = [
+    ["tm-001", "Amara Okafor", "Support Specialist", -10, "Africa/Lagos", "Daniel"],
+    ["tm-002", "Mateo Silva", "Backend Engineer", -3, "America/Sao_Paulo", "Priya"],
+    ["tm-003", "Hana Sato", "Product Designer", 0, "Asia/Tokyo", "Leo"],
+    ["tm-004", "Omar Haddad", "Frontend Developer", 4, "Europe/Berlin", null],
+  ];
+
+  // ---- dates ----
+  const pad = (n) => String(n).padStart(2, "0");
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const addDays = (s, n) => { const [y, m, d] = s.split("-").map(Number); return iso(new Date(y, m - 1, d + n)); };
+  const diffDays = (a, b) => { const p = (s) => s.split("-").map(Number); const [ay, am, ad] = p(a), [by, bm, bd] = p(b); return Math.round((Date.UTC(ay, am - 1, ad) - Date.UTC(by, bm - 1, bd)) / 864e5); };
+  const TODAY = iso(new Date());
+  const fmt = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); };
+
+  // ---- model ----
+  function buildChecklist(role, start) {
+    const rows = TEMPLATE.slice(), seen = new Set(rows.map((r) => r[0]));
+    for (const [kw, row] of Object.entries(EXTRAS)) if (role.toLowerCase().includes(kw) && !seen.has(row[0])) { rows.push(row); seen.add(row[0]); }
+    rows.sort((a, b) => a[3] - b[3] || (a[0] < b[0] ? -1 : 1));
+    return rows.map(([id, title, owner, off, auto]) => ({ id, title, owner, due: addDays(start, off), auto, done: null, blocked: null }));
+  }
+  function seed() {
+    const team = PEOPLE.map(([id, name, role, off, tz, buddy]) => {
+      const start = addDays(TODAY, off);
+      return { id, name, role, start, tz, buddy, tasks: buildChecklist(role, start) };
+    });
+    const complete = (tid, ids) => { const tm = team.find((t) => t.id === tid); ids.forEach((i) => { tm.tasks.find((t) => t.id === i).done = TODAY; }); };
+    complete("tm-001", ["work_email", "tool_access", "helpdesk_access", "discord_invite", "setup_check", "welcome_post", "buddy_intro", "day_one_plan", "handbook", "first_task"]);
+    complete("tm-002", ["work_email", "tool_access", "discord_invite", "welcome_post", "buddy_intro"]);
+    team.find((t) => t.id === "tm-002").tasks.find((t) => t.id === "repo_access").blocked = "GitHub org invite needs an admin approval";
+    complete("tm-003", ["work_email", "tool_access", "design_access", "discord_invite"]);
+    return team;
+  }
+  const state = (t) => t.done ? "done" : t.blocked ? "blocked" : t.due < TODAY ? "overdue" : t.due === TODAY ? "due" : "upcoming";
+  const overdueDays = (t) => t.done ? 0 : Math.max(0, diffDays(TODAY, t.due));
+  const progress = (tm) => tm.tasks.filter((t) => t.done).length / tm.tasks.length;
+  const GLYPH = { done: "✓", due: "•", upcoming: "", overdue: "!", blocked: "×" };
+  const WORD = { done: "Done", due: "Due today", upcoming: "Coming up", overdue: "Overdue", blocked: "Blocked" };
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+  function followup(tm, t, od) {
+    const first = tm.name.split(" ")[0];
+    if (t.blocked) return `Blocked: '${t.title}' for ${tm.name}. Reason: ${t.blocked}. What would unblock it?`;
+    const when = od === 0 ? "today" : `${od} day${od !== 1 ? "s" : ""} ago`;
+    if (t.owner === "teammate") return `Hi ${first}, a quick nudge: '${t.title}' was due ${when}. Anything in the way? Happy to help.`;
+    if (t.owner === "agent") return `Agent task overdue (${when}): '${t.title}' for ${tm.name}. Run it now or flag the blocker.`;
+    return `Reminder for the ${t.owner}: '${t.title}' for ${tm.name} was due ${when}.`;
+  }
+  function welcome(tm) {
+    const first = tm.name.split(" ")[0];
+    const buddy = tm.buddy ? ` Your onboarding buddy is ${tm.buddy}, ask them anything.` : "";
+    return `Welcome to the team, ${first}! 🎉\n${first} joins us as ${tm.role}, starting ${tm.start} (${tm.tz}).${buddy}\nYour day-one checklist is on its way. If anything is unclear or stuck, reply here and we will sort it out.`;
+  }
+
+  // queries
+  const queue = (team) => team.flatMap((tm) => tm.tasks.filter((t) => t.auto && ["due", "overdue"].includes(state(t))).map((t) => ({ tm, t })))
+    .sort((a, b) => overdueDays(b.t) - overdueDays(a.t) || (a.t.due < b.t.due ? -1 : 1));
+  const stuck = (team) => team.flatMap((tm) => tm.tasks.filter((t) => state(t) === "blocked" || (state(t) === "overdue" && overdueDays(t) >= 1)).map((t) => ({ tm, t })))
+    .sort((a, b) => overdueDays(b.t) - overdueDays(a.t));
+  const needsPerson = (team) => {
+    const q = new Set(queue(team).map(({ tm, t }) => tm.id + t.id));
+    return stuck(team).filter(({ tm, t }) => !q.has(tm.id + t.id));
+  };
+
+  // ---- dom helpers ----
+  const $ = (id) => document.getElementById(id);
+  const h = (tag, attrs = {}, ...kids) => {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) { if (v === false || v == null) continue; k === "text" ? (el.textContent = v) : el.setAttribute(k, v === true ? "" : v); }
+    kids.flat().forEach((c) => c != null && el.append(c));
+    return el;
+  };
+  const prefersReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, prefersReduced ? 0 : ms));
+
+  let team = seed();
+  let ran = false, running = false, cleared = 0;
+  const open = new Set();
+  let fresh = null;
+
+  function renderHeadline() {
+    const n = team.length, q = queue(team).length, p = needsPerson(team).length;
+    $("headline").textContent = ran
+      ? `The agent finished ${plural(cleared, "task", "tasks")}. ${plural(p, "task still needs", "tasks still need")} a person, and the messages are ready below.`
+      : `${plural(n, "person is", "people are")} onboarding. ${plural(q, "task is", "tasks are")} waiting on the agent and ${p} need a person.`;
+  }
+
+  function renderRoster() {
+    const list = $("roster");
+    list.replaceChildren(...team.map((tm) => {
+      const startsIn = diffDays(tm.start, TODAY);
+      const meta = progress(tm) === 1 ? "Settled" : startsIn > 0 ? `Starts in ${plural(startsIn, "day", "days")}` : startsIn === 0 ? "Starts today" : `Day ${1 - startsIn}`;
+      const firstFuture = tm.tasks.findIndex((t) => t.due >= TODAY);
+      const cells = [];
+      tm.tasks.forEach((t, i) => {
+        if (i === (firstFuture === -1 ? tm.tasks.length : firstFuture)) cells.push(h("span", { class: "today-mark", "aria-hidden": "true" }));
+        const s = state(t);
+        cells.push(h("span", { class: `cell ${s}${fresh === tm.id + t.id ? " fresh" : ""}`, title: `${t.title} (${t.owner}, ${WORD[s].toLowerCase()}, due ${fmt(t.due)})`, text: GLYPH[s] }));
+      });
+      if (firstFuture === -1) cells.push(h("span", { class: "today-mark", "aria-hidden": "true" }));
+      const isOpen = open.has(tm.id);
+      const row = h("button", { class: "row", type: "button", "aria-expanded": String(isOpen), "aria-controls": `d-${tm.id}` },
+        h("span", { class: "who" }, h("b", { text: tm.name }), h("span", { text: tm.role }), h("span", { text: meta })),
+        h("span", { class: "strip", "aria-hidden": "true" }, cells),
+        h("span", { class: "pct", text: `${Math.round(progress(tm) * 100)}%`, "aria-label": `${Math.round(progress(tm) * 100)} percent done` }));
+      row.addEventListener("click", () => { open.has(tm.id) ? open.delete(tm.id) : open.add(tm.id); renderRoster(); });
+      const detail = h("div", { class: "detail", id: `d-${tm.id}`, hidden: !isOpen },
+        h("ol", {}, tm.tasks.map((t) => { const s = state(t); return h("li", { class: `st-${s}` }, h("span", { class: "g", "aria-hidden": "true", text: GLYPH[s] || "–" }),
+          h("span", {}, `${t.title}`, h("small", { text: `${WORD[s]}${t.blocked ? `: ${t.blocked}` : ""}. Owner: ${t.owner}. Due ${fmt(t.due)}.` }))); })));
+      return h("li", { class: "person" }, row, detail);
+    }));
+    fresh = null;
+  }
+
+  function renderIdle() {
+    const q = queue(team);
+    $("run-hint").textContent = q.length ? "Waiting on the agent. These tasks are due now and it can do them without a person." : "Nothing is waiting on the agent.";
+    $("queue").replaceChildren(...q.map(({ tm, t }) => h("li", {}, `${tm.name}: ${t.title}`, h("small", { text: overdueDays(t) ? `${plural(overdueDays(t), "day", "days")} overdue` : "Due today" }))));
+    $("queue").hidden = false; $("log").hidden = true;
+  }
+
+  function renderFollow() {
+    const items = needsPerson(team);
+    $("follow").replaceChildren(...(items.length ? items.map(({ tm, t }) => {
+      const od = overdueDays(t), msg = followup(tm, t, od);
+      const btn = h("button", { class: "copy", type: "button", text: "Copy message" });
+      btn.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(msg); btn.textContent = "Copied"; } catch (e) {
+          const ta = h("textarea", { style: "position:fixed;opacity:0" }); ta.value = msg; document.body.append(ta); ta.select();
+          try { document.execCommand("copy"); btn.textContent = "Copied"; } catch (e2) { btn.textContent = "Select the text and copy"; } ta.remove();
+        }
+        setTimeout(() => (btn.textContent = "Copy message"), 1800);
+      });
+      return h("li", {}, h("div", {}, h("b", { text: `${tm.name}: ${t.title}` }),
+        h("span", { class: t.blocked ? "why bad" : "why", text: t.blocked ? `Blocked: ${t.blocked}` : `Owner: ${t.owner}. ${plural(od, "day", "days")} overdue.` })),
+        h("blockquote", { text: msg }), btn);
+    }) : [h("li", { class: "empty", text: "Nothing needs a person right now." })]));
+  }
+
+  const renderAll = () => { renderHeadline(); renderRoster(); renderFollow(); if (!ran && !running) renderIdle(); };
+
+  function logLine(call, result, quote) {
+    const li = h("li", { class: "enter" }, h("code", { text: call }), h("span", { class: "res", text: result }), quote ? h("blockquote", { text: quote }) : null);
+    $("log").append(li);
+  }
+
+  async function runAgent() {
+    if (running) return;
+    running = true; $("run").disabled = true; $("run").textContent = "Running";
+    $("queue").hidden = true; $("log").hidden = false; $("log").replaceChildren();
+    $("run-hint").textContent = "Each line is a tool call the agent makes to the MCP server.";
+    const q = queue(team);
+    logLine("agent_queue()", `${plural(q.length, "task", "tasks")} due now`);
+    for (const { tm, t } of q) {
+      await sleep(650);
+      t.done = TODAY; cleared += 1; fresh = tm.id + t.id;
+      logLine(`complete_task("${tm.id}", "${t.id}")`, `${tm.name}: ${t.title}`);
+      renderRoster(); renderHeadline();
+      if (t.id === "welcome_post") {
+        await sleep(500);
+        logLine(`post_welcome_to_discord("${tm.id}")`, "Dry run. No webhook is set, so nothing was sent. This is the message:", welcome(tm));
+      }
+    }
+    await sleep(650);
+    const blocked = team.flatMap((tm) => tm.tasks.filter((t) => t.auto && t.blocked).map((t) => ({ tm, t })));
+    const p = needsPerson(team).length;
+    logLine("stuck_tasks()", `${plural(p, "task needs", "tasks need")} a person${blocked.length ? `. ${plural(blocked.length, "agent task is", "agent tasks are")} blocked, so it was left alone.` : "."}`);
+    await sleep(450);
+    logLine("weekly_report()", "Report ready.");
+    ran = true; running = false;
+    $("run").textContent = "Run the agent"; $("run").hidden = true; $("reset").hidden = false;
+    renderAll();
+    $("reset").focus();
+  }
+
+  function reset() {
+    team = seed(); ran = false; running = false; cleared = 0; fresh = null;
+    $("run").hidden = false; $("run").disabled = false; $("reset").hidden = true;
+    renderAll(); $("run").focus();
+  }
+
+  $("stamp").textContent = `Demo data for ${fmt(TODAY)}`;
+  $("run").addEventListener("click", runAgent);
+  $("reset").addEventListener("click", reset);
+  renderAll();
+})();
+</script>
+</body>
+</html>

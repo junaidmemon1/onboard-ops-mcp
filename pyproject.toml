@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onboard-ops-mcp"
+version = "0.1.0"
+description = "An MCP server and CLI that lets AI agents run new-teammate onboarding: checklists, agent queue, stuck-task follow-ups, Discord welcome."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["mcp>=1.2,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+onboard-ops = "onboard_ops.cli:main"
+onboard-ops-mcp = "onboard_ops.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
